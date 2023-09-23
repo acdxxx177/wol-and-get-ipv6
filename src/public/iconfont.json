@@ -1,0 +1,23 @@
+{
+  "id": "",
+  "name": "",
+  "font_family": "iconfont",
+  "css_prefix_text": "icon-",
+  "description": "",
+  "glyphs": [
+    {
+      "icon_id": "2983146",
+      "name": "Computer-blue",
+      "font_class": "Computer-blue",
+      "unicode": "e6b8",
+      "unicode_decimal": 59064
+    },
+    {
+      "icon_id": "2983206",
+      "name": "Computer-grey",
+      "font_class": "Computer-grey",
+      "unicode": "e6b9",
+      "unicode_decimal": 59065
+    }
+  ]
+}

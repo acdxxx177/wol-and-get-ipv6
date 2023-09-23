@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>电脑状态唤醒</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+        margin: 0;
+        padding: 0;
+      }
+
+      .grid-container {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+        padding: 20px;
+      }
+
+      .computer {
+        position: relative;
+        border: 1px solid #ccc;
+        padding: 10px;
+        text-align: center;
+        cursor: pointer;
+        transition: border-color 0.3s;
+      }
+
+      .computer:hover {
+        border-color: #007bff;
+      }
+
+      .computer icon {
+        width: 1em;
+        height: 1em;
+        vertical-align: -0.15em;
+        fill: currentColor;
+        overflow: hidden;
+        transition: transform 0.3s;
+      }
+
+      .loadwarp {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+
+      .loadwarp > .loader {
+        display: block;
+        --height-of-loader: 4px;
+        --loader-color: #0071e2;
+        width: 130px;
+        height: var(--height-of-loader);
+        border-radius: 30px;
+        background-color: rgba(0,0,0,0.2);
+        position: relative;
+      }
+
+      .loadwarp > .loader::before {
+        content: "";
+        position: absolute;
+        background: var(--loader-color);
+        top: 0;
+        left: 0;
+        width: 0%;
+        height: 100%;
+        border-radius: 30px;
+        animation: moving 1s ease-in-out infinite;
+        ;
+      }
+
+      @keyframes moving {
+        50% {
+          width: 100%;
+        }
+
+        100% {
+          width: 0;
+          right: 0;
+          left: unset;
+        }
+      }
+
+      .modal {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background-color: rgba(0, 0, 0, 0.7);
+        justify-content: center;
+        align-items: center;
+        z-index: 1;
+      }
+
+      .modal-content {
+        background-color: #fff;
+        padding: 20px;
+        border-radius: 5px;
+        text-align: center;
+      }
+
+      .close-button {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        cursor: pointer;
+      }
+
+      .confirm-button {
+        margin: 10px;
+        padding: 10px 20px;
+        background-color: #007bff;
+        color: #fff;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+
+      .cancel-button {
+        margin: 10px;
+        padding: 10px 20px;
+        background-color: #ccc;
+        color: #fff;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+    </style>
+    <script src="./iconfont.js"></script>
+  </head>
+
+  <body>
+    <div class="grid-container">
+    <% for(var i=0; i<hostList.length; i++) {%>
+      <div class="computer" data-pc="<%= hostList[i].hostname %>" data-status="checking">
+        <p class="name"><%= hostList[i].name %></p>
+        <svg class="icon" aria-hidden="true">
+          <use xlink:href="#icon-Computer-grey"></use>
+        </svg>
+        <p class="status">检测中</p>
+        <div class="loadwarp">
+          <div class="loader"></div>
+        </div>
+      </div>
+    <% } %>
+    </div>
+    <!-- 模态框 -->
+    <div id="myModal" class="modal">
+      <div class="modal-content">
+        <span class="close-button" id="closeModal">&times;</span>
+        <h2 id="modalTitle">PC信息</h2>
+        <div id="modalContent">
+          <!-- 这里将显示PC信息 -->
+        </div>
+        <button class="confirm-button" id="confirmButton">确定</button>
+        <button class="cancel-button" id="cancelButton">取消</button>
+      </div>
+    </div>
+    <div class="loadwarp" id="globalLoader" style="display: none;">
+      <div class="loader"></div>
+    </div>
+    <script>
+      const computers = document.querySelectorAll('.computer');
+      const modal = document.getElementById('myModal');
+      const modalContent = document.getElementById('modalContent');
+      const modalTitle = document.getElementById('modalTitle');
+      const closeModal = document.getElementById('closeModal');
+      const confirmButton = document.getElementById('confirmButton');
+      const cancelButton = document.getElementById('cancelButton');
+      const globalLoader = document.getElementById('globalLoader');
+  
+      let current_pc = "";
+      let current_status = "";
+  
+      function toggleGlobalLoader(show) {
+          globalLoader.style.display = show ? 'flex' : 'none';
+      }
+
+      function toggleLoaclLoader(show, computer) {
+          if(computer) {
+            const loadwarp = computer.querySelector('.loadwarp');
+            loadwarp.style.display = show ? 'flex' : 'none';
+          }
+      }
+  
+      function pinghost(hostname, computer) {
+          if (!computer) {
+              computer = document.querySelector(`.computer[data-pc="${hostname}"]`);
+          }
+          toggleLoaclLoader(true, computer); // 显示局部loading动画
+          computer.setAttribute('data-status', 'checking');
+          computer.querySelector('.status').textContent = '检测中。。。';
+          return fetch("/ping?hostname=" + encodeURIComponent(hostname))
+              .then(res => res.json())
+              .then(res => {
+                  toggleLoaclLoader(false, computer); // 隐藏局部loading动画
+                  if (res.msg === true) {
+                      computer.setAttribute('data-status', 'on');
+                      computer.querySelector('.status').textContent = '开机';
+                      computer.querySelector('.icon > use').setAttribute('xlink:href', '#icon-Computer-blue');
+                  } else {
+                      computer.setAttribute('data-status', 'off');
+                      computer.querySelector('.status').textContent = '关机';
+                      computer.querySelector('.icon > use').setAttribute('xlink:href', '#icon-Computer-grey');
+                  }
+                  return res;
+              });
+      }
+  
+      function showModal(pcName, pcStatus) {
+          const pcTitle = pcName;
+          if (pcStatus === 'checking') {
+              return; // 不响应点击事件
+          } else if (pcStatus === 'off') {
+              // 弹出确认对话框
+              modalTitle.textContent = '唤醒电脑';
+              modalContent.innerHTML = `确定要唤醒${pcTitle}的电脑吗？`;
+              modal.style.display = 'block';
+          } else if (pcStatus === 'on') {
+              // 显示电脑信息
+              modalTitle.textContent = 'PC信息';
+              modalContent.innerHTML = `PC名称: ${pcTitle}<br>状态: 开机`;
+              toggleGlobalLoader(true);
+              getIpv6(pcName);
+              modal.style.display = 'block';
+          }
+          current_pc = pcName;
+          current_status = pcStatus;
+      }
+  
+      // 遍历每台电脑，为它们添加点击事件监听器
+      computers.forEach((computer) => {
+          const pcName = computer.getAttribute('data-pc');
+          // 检测电脑状态
+          pinghost(pcName, computer);
+  
+          // 为电脑添加点击事件监听器
+          computer.addEventListener('click', () => {
+              const pcStatus = computer.getAttribute('data-status');
+              showModal(pcName, pcStatus);
+          });
+      });
+  
+      function getIpv6(hostname) {
+          fetch("/ipv6?hostname=" + encodeURIComponent(hostname)).then(res => res.json()).then(res => {
+              if (res.msg === "success" && res.list.length > 0) {
+                  for (let i = 0; i < res.list.length; i++) {
+                      modalContent.innerHTML += `<br>IPv6地址: ${res.list[i]}`;
+                  }
+              } else {
+                  modalContent.innerHTML += `<br>IPv6地址: 无`;
+              }
+              toggleGlobalLoader(false);
+          });
+      }
+  
+      function hiddenModal() {
+          modal.style.display = 'none';
+          current_pc = "";
+          current_status = "";
+      }
+  
+      closeModal.addEventListener('click', hiddenModal);
+  
+      window.addEventListener('click', (event) => {
+          if (event.target == modal) {
+              hiddenModal();
+          }
+      });
+  
+      // 确认按钮点击事件
+      confirmButton.addEventListener('click', () => {
+          confirmButton.style.display = 'none';
+          if (current_status === 'off') {
+              toggleGlobalLoader(true);
+              modalContent.innerHTML = `正在发送唤醒指令...<br>请稍等`;
+              fetch("/wol?hostname=" + encodeURIComponent(current_pc))
+                  .then(res => res.json())
+                  .then(res => {
+                      if (res.msg === true) {
+                          modalContent.innerHTML = `已成功发送唤醒指令, 请等待电脑开机......`;
+                          //循环检测电脑是否开机，第一次时间20秒，后面间隔5秒，最大次数10次，如果开机则显示电脑信息
+                          let count = 0;
+                          let timer = setInterval(function() {
+                              count++;
+                              if (count > 10) {
+                                  clearInterval(timer);
+                                  modalContent.innerHTML = `电脑开机失败`;
+                                  confirmButton.style.display = 'inline-block';
+                                  current_pc = "";
+                                  current_status = "";
+                                  toggleGlobalLoader(false);
+                                  return;
+                              }
+                              pinghost(current_pc)
+                                  .then(res => {
+                                      if (res.msg === true) {
+                                          clearInterval(timer);
+                                          modalContent.innerHTML = `电脑开机成功`;
+                                          confirmButton.style.display = 'inline-block';
+                                          getIpv6(current_pc);
+                                          current_pc = "";
+                                          current_status = "";
+                                      }
+                                  });
+                          }, count === 1 ? 50000 : 20000);
+                      } else {
+                          modalContent.innerHTML = `发送唤醒指令失败`;
+                          confirmButton.style.display = 'inline-block';
+                          toggleGlobalLoader(false);
+                      }
+                  });
+          } else {
+              confirmButton.style.display = 'inline-block';
+              hiddenModal();
+          }
+      });
+  
+      // 取消按钮点击事件
+      cancelButton.addEventListener('click', hiddenModal);
+    </script>
+  </body>
+</html>
