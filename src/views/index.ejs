@@ -231,7 +231,7 @@
               modalTitle.textContent = 'PC信息';
               modalContent.innerHTML = `PC名称: ${pcTitle}<br>状态: 开机`;
               toggleGlobalLoader(true);
-              getIpv6(pcName);
+              getIpv6(pcName).then(changeIPV6info);
               modal.style.display = 'block';
           }
           current_pc = pcName;
@@ -252,16 +252,18 @@
       });
   
       function getIpv6(hostname) {
-          fetch("/ipv6?hostname=" + encodeURIComponent(hostname)).then(res => res.json()).then(res => {
-              if (res.msg === "success" && res.list.length > 0) {
-                  for (let i = 0; i < res.list.length; i++) {
-                      modalContent.innerHTML += `<br>IPv6地址: ${res.list[i]}`;
-                  }
-              } else {
-                  modalContent.innerHTML += `<br>IPv6地址: 无`;
-              }
-              toggleGlobalLoader(false);
-          });
+          return fetch("/ipv6?hostname=" + encodeURIComponent(hostname)).then(res => res.json());
+      }
+
+      function changeIPV6info(res){
+        if (res.msg === "success" && res.list.length > 0) {
+            for (let i = 0; i < res.list.length; i++) {
+                modalContent.innerHTML += `<br>IPv6地址: ${res.list[i]}`;
+            }
+        } else {
+            modalContent.innerHTML += `<br>IPv6地址: 无`;
+        }
+        toggleGlobalLoader(false);
       }
   
       function hiddenModal() {
@@ -306,14 +308,12 @@
                                   .then(res => {
                                       if (res.msg === true) {
                                           clearInterval(timer);
-                                          modalContent.innerHTML = `电脑开机成功`;
-                                          confirmButton.style.display = 'inline-block';
-                                          getIpv6(current_pc);
-                                          current_pc = "";
+                                          modalContent.innerHTML = `电脑开机成功,等待IP返回。。。`;
                                           current_status = "";
+                                          waitForIpv6Info();
                                       }
                                   });
-                          }, count === 1 ? 50000 : 20000);
+                          }, count === 1 ? 30000 : 10000);
                       } else {
                           modalContent.innerHTML = `发送唤醒指令失败`;
                           confirmButton.style.display = 'inline-block';
@@ -325,6 +325,34 @@
               hiddenModal();
           }
       });
+
+      function waitForIpv6Info(){
+        //循环等待IP返回
+        let count = 0;
+        let timer = setInterval(()=>{
+          count++;
+          if (count > 10) {
+            clearInterval(timer);
+            modalContent.innerHTML = `获取IP超时，请手动获取IP`;
+            confirmButton.style.display = 'inline-block';
+            current_pc = "";
+            current_status = "";
+            toggleGlobalLoader(false);
+            return;
+          } else {
+            getIpv6(current_pc).then(res=>{
+              if(res.msg === "success" && res.list.length > 0){
+                clearInterval(timer);
+                confirmButton.style.display = 'inline-block';
+                modalContent.innerHTML = "IPV6获取成功！";
+                current_pc = "";
+                current_status = "";
+                changeIPV6info(res);
+              }
+            })
+          }
+        },count === 1 ? 40000 : 10000)
+      }
   
       // 取消按钮点击事件
       cancelButton.addEventListener('click', hiddenModal);
